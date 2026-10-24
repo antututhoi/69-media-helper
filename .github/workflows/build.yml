@@ -1,0 +1,45 @@
+name: Build 69 Media Helper
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Prepare signing key (same key as your other 69 apps)
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$GITHUB_WORKSPACE/my.keystore"
+            printf 'storeFile=%s\nstorePassword=ytdlnis123\nkeyAlias=key0\nkeyPassword=ytdlnis123\n' "$GITHUB_WORKSPACE/my.keystore" > keystore.properties
+          else
+            echo "::warning::No KEYSTORE_B64 secret found. Other 69 apps will not be able to use this helper."
+          fi
+
+      - name: Build
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease -x lint
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: 69-media-helper-apk
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
