@@ -12,6 +12,8 @@ import java.lang.reflect.Method;
 public final class FFmpeg {
     private static final String TAG = "Mod69FFmpeg";
     private static Boolean available;
+    static String version = "";
+    static String problem = "";
 
     private FFmpeg() {}
 
@@ -19,8 +21,14 @@ public final class FFmpeg {
         if (available == null) {
             try {
                 Class.forName("com.arthenica.ffmpegkit.FFmpegKit");
+                // also load the native part, so "Ready" really means it can run
+                Object v = Class.forName("com.arthenica.ffmpegkit.FFmpegKitConfig")
+                        .getMethod("getFFmpegVersion").invoke(null);
+                version = v == null ? "" : v.toString();
                 available = true;
             } catch (Throwable t) {
+                Log.w(TAG, "FFmpeg not available", t);
+                problem = t.getClass().getSimpleName() + (t.getCause() != null ? " / " + t.getCause().getClass().getSimpleName() : "");
                 available = false;
             }
         }

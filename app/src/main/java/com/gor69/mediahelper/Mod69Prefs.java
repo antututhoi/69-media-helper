@@ -13,6 +13,8 @@ public final class Mod69Prefs {
     public static final String EMBED_VIDEO_COVER = "mod69_embed_video_cover";
     public static final String NOTIFICATION_THUMBNAIL = "mod69_notification_thumbnail";
     public static final String COVER_WIDTH = "mod69_cover_width";
+    public static final String IMAGE_TO_WEBP = "mod69_image_to_webp";
+    public static final String VIDEO_TO_WEBM = "mod69_video_to_webm";
     public static final String AUTO_UPVOTE_ON_DOWNLOAD = "mod69_auto_upvote_on_download";
     public static final String AUTO_DOWNVOTE_ON_HIDE = "mod69_auto_downvote_on_hide";
     public static final String SHOW_ACTION_BUTTONS = "mod69_show_action_buttons";

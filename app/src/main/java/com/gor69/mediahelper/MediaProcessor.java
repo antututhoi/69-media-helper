@@ -41,6 +41,15 @@ public final class MediaProcessor {
         public String mimeType;
         public int mediaType;
         @Nullable public Bitmap thumbnail;
+        /** What was done (or why not), shown in the app's notification and in the helper's "Recent jobs". */
+        public final List<String> notes = new ArrayList<>();
+        /** File name ending for low quality copies: "_lo" (pictures) or e.g. "_480p" (videos). Empty for originals. */
+        public String suffix = "";
+    }
+
+    static String size(long bytes) {
+        if (bytes >= 1024 * 1024) return String.format(java.util.Locale.US, "%.1f MB", bytes / 1048576.0);
+        return String.format(java.util.Locale.US, "%d KB", Math.max(1, bytes / 1024));
     }
 
     private MediaProcessor() {}
@@ -110,71 +119,194 @@ public final class MediaProcessor {
      */
     public static Result process(Context context, SharedPreferences prefs, File input,
                                  int declaredType, @Nullable String declaredExt) {
+        return process(context, prefs, input, declaredType, declaredExt, null);
+    }
+
+    /** @param qualityOverride "high" or "low" for this one file (the "other quality" download), or null for the setting. */
+    public static Result process(Context context, SharedPreferences prefs, File input,
+                                 int declaredType, @Nullable String declaredExt, @Nullable String qualityOverride) {
         Result r = new Result();
         String real = sniff(input);
         if (real == null) {
             real = declaredExt != null ? declaredExt.toLowerCase() : (declaredType == TYPE_VIDEO ? "mp4" : declaredType == TYPE_GIF ? "gif" : "jpg");
             if (real.equals("jpeg")) real = "jpg";
         }
+        String declared = declaredExt == null ? null : declaredExt.toLowerCase().replace("jpeg", "jpg");
+        if (declared != null && !declared.equals(real)) {
+            r.notes.add("Real format: " + real.toUpperCase() + " (was named ." + declared + ")");
+        }
         r.file = input;
         r.extension = real;
         r.mediaType = typeFor(real);
-        boolean low = Mod69Prefs.isLowQuality(prefs);
+        boolean low = qualityOverride != null ? "low".equals(qualityOverride) : Mod69Prefs.isLowQuality(prefs);
         boolean cover = prefs.getBoolean(Mod69Prefs.EMBED_VIDEO_COVER, true);
+        boolean toWebp = prefs.getBoolean(Mod69Prefs.IMAGE_TO_WEBP, false);
+        boolean toWebm = prefs.getBoolean(Mod69Prefs.VIDEO_TO_WEBM, false);
         COVER_WIDTH = Mod69Prefs.coverWidth(prefs);
+        boolean ffmpeg = FFmpeg.isAvailable();
+        r.notes.add("Quality: " + (low ? "low" : "original"));
 
         try {
             if (r.mediaType == TYPE_GIF) {
                 if (prefs.getBoolean(Mod69Prefs.GIF_TO_MP4, false)) {
-                    File mp4 = gifToMp4(context, r.file, low ? prefs : null);
-                    if (mp4 != null && mp4.length() > 0 && mp4.length() < r.file.length()) {
-                        replace(r, mp4, "mp4");
-                    } else if (mp4 != null) {
-                        //noinspection ResultOfMethodCallIgnored
-                        mp4.delete();
+                    if (!ffmpeg) {
+                        r.notes.add("GIF to MP4 skipped: FFmpeg not available");
+                    } else {
+                        long before = r.file.length();
+                        File mp4 = gifToMp4(context, r.file, low ? prefs : null);
+                        if (mp4 != null && mp4.length() > 0 && mp4.length() < before) {
+                            r.notes.add("GIF to MP4: " + size(before) + " -> " + size(mp4.length()));
+                            replace(r, mp4, "mp4");
+                        } else if (mp4 != null) {
+                            r.notes.add("GIF to MP4 kept GIF (MP4 " + size(mp4.length()) + " is not smaller than " + size(before) + ")");
+                            //noinspection ResultOfMethodCallIgnored
+                            mp4.delete();
+                        } else {
+                            r.notes.add("GIF to MP4 failed, kept GIF");
+                        }
                     }
                 }
                 if (r.mediaType == TYPE_GIF && low) {
-                    File small = downscaleGif(context, prefs, r.file);
-                    if (small != null) replace(r, small, "gif");
+                    File small = ffmpeg ? downscaleGif(context, prefs, r.file) : null;
+                    if (small != null) {
+                        r.notes.add("GIF made smaller");
+                        replace(r, small, "gif");
+                        r.suffix = "_lo";
+                    }
                 }
             } else if (r.mediaType == TYPE_IMAGE) {
                 if (low && !isAnimatedWebp(r.file)) {
                     File small = downscaleImage(context, prefs, r.file, r.extension);
-                    if (small != null) replace(r, small, r.extension);
+                    if (small != null) {
+                        replace(r, small, r.extension);
+                        r.suffix = "_lo";
+                        int[] wh = imageSize(r.file);
+                        r.notes.add("Picture made smaller" + (wh == null ? "" : " (" + wh[0] + "x" + wh[1] + ")"));
+                    } else {
+                        r.notes.add("Picture already small, kept as is");
+                    }
+                }
+                if (toWebp && !r.extension.equals("webp") && !r.extension.equals("gif") && !isAnimatedWebp(r.file)) {
+                    long before = r.file.length();
+                    File webp = toWebp(context, r.file);
+                    if (webp != null && webp.length() < before) {
+                        r.notes.add("WebP: " + size(before) + " -> " + size(webp.length()));
+                        replace(r, webp, "webp");
+                    } else {
+                        if (webp != null) //noinspection ResultOfMethodCallIgnored
+                            webp.delete();
+                        r.notes.add("WebP not smaller, kept " + r.extension.toUpperCase());
+                    }
                 }
             }
 
             if (r.mediaType == TYPE_VIDEO) {
-                if (r.extension.equals("webm") || r.extension.equals("mkv")) {
-                    File mp4 = newTempFile(context, "mp4");
-                    if (FFmpeg.run("-y", "-i", r.file.getAbsolutePath(), "-map", "0:v:0", "-map", "0:a:0?",
-                            "-c", "copy", "-strict", "experimental", "-movflags", "+faststart",
-                            mp4.getAbsolutePath()) && sameDuration(r.file, mp4)) {
-                        replace(r, mp4, "mp4");
-                    } else {
-                        //noinspection ResultOfMethodCallIgnored
-                        mp4.delete();
+                if (!ffmpeg) {
+                    r.notes.add("Video changes skipped: FFmpeg not available");
+                } else {
+                    if (r.extension.equals("webm") || r.extension.equals("mkv")) {
+                        if (!toWebm) {
+                            File mp4 = newTempFile(context, "mp4");
+                            if (FFmpeg.run("-y", "-i", r.file.getAbsolutePath(), "-map", "0:v:0", "-map", "0:a:0?",
+                                    "-c", "copy", "-strict", "experimental", "-movflags", "+faststart",
+                                    mp4.getAbsolutePath()) && sameDuration(r.file, mp4)) {
+                                replace(r, mp4, "mp4");
+                            } else {
+                                //noinspection ResultOfMethodCallIgnored
+                                mp4.delete();
+                            }
+                        }
                     }
-                }
-                if (r.extension.equals("mp4")) {
                     if (low) {
                         File small = downscaleVideo(context, prefs, r.file);
-                        if (small != null) replace(r, small, "mp4");
+                        if (small != null) {
+                            replace(r, small, "mp4");
+                            r.suffix = "_" + Mod69Prefs.lowVideoHeight(prefs) + "p";
+                            r.notes.add("Video made " + Mod69Prefs.lowVideoHeight(prefs) + "p");
+                        } else {
+                            r.notes.add("Video already " + Mod69Prefs.lowVideoHeight(prefs) + "p or smaller");
+                        }
+                    }
+                    if (toWebm && !r.extension.equals("webm")) {
+                        long before = r.file.length();
+                        File webm = toWebm(context, r.file);
+                        if (webm != null && webm.length() < before) {
+                            r.notes.add("WebM: " + size(before) + " -> " + size(webm.length()));
+                            replace(r, webm, "webm");
+                        } else {
+                            if (webm != null) //noinspection ResultOfMethodCallIgnored
+                                webm.delete();
+                            r.notes.add("WebM not smaller, kept " + r.extension.toUpperCase());
+                        }
                     }
                     if (cover) {
-                        File withCover = embedCover(context, r.file);
-                        if (withCover != null) replace(r, withCover, "mp4");
+                        String[] why = new String[1];
+                        File withCover = embedCover(context, r.file, why);
+                        if (withCover != null) {
+                            replace(r, withCover, r.extension);
+                            r.notes.add("Cover picture added");
+                        } else {
+                            r.notes.add("Cover: " + (why[0] == null ? "failed" : why[0]));
+                        }
                     }
                 }
             }
         } catch (Throwable t) {
             Log.w(TAG, "processing failed, keeping the downloaded file", t);
+            r.notes.add("Error: " + t.getClass().getSimpleName());
         }
 
         r.mimeType = mimeFor(r.extension);
-
         return r;
+    }
+
+    @Nullable
+    static int[] imageSize(File f) {
+        BitmapFactory.Options o = new BitmapFactory.Options();
+        o.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(f.getAbsolutePath(), o);
+        return o.outWidth > 0 ? new int[]{o.outWidth, o.outHeight} : null;
+    }
+
+    /** Width x height of a picture, GIF or video, or null. */
+    @Nullable
+    static int[] dimensions(File f, int mediaType) {
+        if (mediaType == TYPE_VIDEO) return videoSize(f);
+        if (mediaType == TYPE_GIF) return gifSize(f);
+        return imageSize(f);
+    }
+
+    // ---------- WebP / WebM ----------
+
+    @Nullable
+    private static File toWebp(Context context, File in) {
+        Bitmap b = BitmapFactory.decodeFile(in.getAbsolutePath());
+        if (b == null) return null;
+        File out = newTempFile(context, "webp");
+        Bitmap.CompressFormat f = android.os.Build.VERSION.SDK_INT >= 30
+                ? Bitmap.CompressFormat.WEBP_LOSSY : Bitmap.CompressFormat.WEBP;
+        try (OutputStream os = new FileOutputStream(out)) {
+            b.compress(f, 85, os);
+        } catch (IOException e) {
+            //noinspection ResultOfMethodCallIgnored
+            out.delete();
+            return null;
+        } finally {
+            b.recycle();
+        }
+        return out.length() > 0 ? out : null;
+    }
+
+    @Nullable
+    private static File toWebm(Context context, File in) {
+        File out = newTempFile(context, "webm");
+        boolean ok = FFmpeg.run("-y", "-i", in.getAbsolutePath(), "-map", "0:v:0", "-map", "0:a:0?",
+                "-c:v", "libvpx-vp9", "-crf", "34", "-b:v", "0", "-row-mt", "1", "-deadline", "realtime", "-cpu-used", "8",
+                "-c:a", "libopus", "-b:a", "96k", out.getAbsolutePath());
+        if (ok && out.length() > 1024 && sameDuration(in, out)) return out;
+        //noinspection ResultOfMethodCallIgnored
+        out.delete();
+        return null;
     }
 
     private static void replace(Result r, File newFile, String ext) {
@@ -354,17 +486,24 @@ public final class MediaProcessor {
     }
 
     @Nullable
-    private static File embedCover(Context context, File video) {
-        if (!FFmpeg.isAvailable()) return null;
-        String has = FFmpeg.probe("-v", "error", "-select_streams", "v:1", "-show_entries",
-                "stream_disposition=attached_pic", "-of", "default=noprint_wrappers=1:nokey=1",
-                video.getAbsolutePath());
-        if (has != null && has.trim().startsWith("1")) return null;
-
+    private static File embedCover(Context context, File video, String[] why) {
+        boolean webm = video.getName().endsWith(".webm");
+        if (!webm) {
+            String has = FFmpeg.probe("-v", "error", "-select_streams", "v", "-show_entries",
+                    "stream_disposition=attached_pic", "-of", "default=noprint_wrappers=1:nokey=1",
+                    video.getAbsolutePath());
+            if (has != null && has.contains("1")) {
+                why[0] = "already has one";
+                return null;
+            }
+        }
         File thumb = newTempFile(context, "jpg");
         try {
             Bitmap frame = frameAt(video, 0.25);
-            if (frame == null) return null;
+            if (frame == null) {
+                why[0] = "could not read a frame";
+                return null;
+            }
             int w = Math.min(COVER_WIDTH, frame.getWidth());
             int h = Math.max(1, Math.round(frame.getHeight() * (w / (float) frame.getWidth())));
             Bitmap small = Bitmap.createScaledBitmap(frame, w, h, true);
@@ -374,17 +513,26 @@ public final class MediaProcessor {
             if (small != frame) small.recycle();
             frame.recycle();
 
-            File out = newTempFile(context, "mp4");
-            boolean ok = FFmpeg.run("-y", "-i", video.getAbsolutePath(), "-i", thumb.getAbsolutePath(),
-                    "-map", "0:v:0", "-map", "0:a:0?", "-map", "1", "-map_metadata", "0",
-                    "-ignore_unknown", "-c", "copy", "-disposition:v:1", "attached_pic",
-                    "-movflags", "+faststart", out.getAbsolutePath());
+            File out = newTempFile(context, webm ? "webm" : "mp4");
+            boolean ok;
+            if (webm) {
+                ok = FFmpeg.run("-y", "-i", video.getAbsolutePath(), "-map", "0", "-c", "copy",
+                        "-attach", thumb.getAbsolutePath(), "-metadata:s:t", "mimetype=image/jpeg",
+                        "-metadata:s:t", "filename=cover.jpg", out.getAbsolutePath());
+            } else {
+                ok = FFmpeg.run("-y", "-i", video.getAbsolutePath(), "-i", thumb.getAbsolutePath(),
+                        "-map", "0:v:0", "-map", "0:a:0?", "-map", "1", "-map_metadata", "0",
+                        "-c", "copy", "-c:v:1", "mjpeg", "-disposition:v:1", "attached_pic",
+                        "-movflags", "+faststart", out.getAbsolutePath());
+            }
             // Safety: exit code, size and duration must all look right before the original is replaced.
             if (ok && out.length() >= video.length() * 0.9 && sameDuration(video, out)) return out;
+            why[0] = !ok ? "FFmpeg error" : "result failed the safety check";
             //noinspection ResultOfMethodCallIgnored
             out.delete();
             return null;
         } catch (IOException e) {
+            why[0] = "file error";
             return null;
         } finally {
             //noinspection ResultOfMethodCallIgnored

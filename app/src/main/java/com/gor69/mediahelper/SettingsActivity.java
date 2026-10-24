@@ -47,9 +47,16 @@ public class SettingsActivity extends AppCompatActivity {
             super.onResume();
             Preference status = findPreference("status_ffmpeg");
             if (status != null) {
-                String s = getString(FFmpeg.isAvailable() ? R.string.status_ok : R.string.status_missing)
+                boolean ok = FFmpeg.isAvailable();
+                String s = getString(ok ? R.string.status_ok : R.string.status_missing)
+                        + (ok ? " " + FFmpeg.version : "\n" + FFmpeg.problem)
                         + "\n" + getString(R.string.processed_count, Stats.processed(requireContext()));
                 status.setSummary(s);
+            }
+            Preference jobs = findPreference("recent_jobs");
+            if (jobs != null) {
+                String j = Stats.jobs(requireContext());
+                jobs.setSummary(j.isEmpty() ? getString(R.string.recent_jobs_none) : j);
             }
         }
     }

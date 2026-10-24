@@ -34,7 +34,18 @@ public final class HelperContract {
     public static final String KEY_LOW_VIDEO_HEIGHT = "low_video_height";
     public static final String KEY_GIF_TO_MP4 = "gif_to_mp4";
 
-    public static final int VERSION = 1;
+    /** Sent with MSG_PROCESS: "high" or "low" for this one file, overriding the setting (optional). */
+    public static final String KEY_QUALITY = "quality";
+    /** Sent back with MSG_RESULT: */
+    public static final String KEY_INFO = "info";          // what was done, one line per step
+    public static final String KEY_SUFFIX = "suffix";      // "_lo", "_480p" or ""
+    public static final String KEY_ORIGINAL_SIZE = "original_size";
+    public static final String KEY_FINAL_SIZE = "final_size";
+    public static final String KEY_WIDTH = "width";
+    public static final String KEY_HEIGHT = "height";
+    public static final String KEY_FFMPEG = "ffmpeg";      // also sent with MSG_PONG
+
+    public static final int VERSION = 2;
 
     private HelperContract() {}
 }

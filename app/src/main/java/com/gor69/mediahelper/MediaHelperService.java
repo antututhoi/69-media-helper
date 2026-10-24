@@ -55,6 +55,7 @@ public class MediaHelperService extends Service {
             Bundle b = new Bundle();
             b.putInt(HelperContract.KEY_VERSION, HelperContract.VERSION);
             b.putBoolean(HelperContract.KEY_OK, FFmpeg.isAvailable());
+            b.putBoolean(HelperContract.KEY_FFMPEG, FFmpeg.isAvailable());
             SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
             b.putBoolean(HelperContract.KEY_LOW_QUALITY, Mod69Prefs.isLowQuality(prefs));
             b.putInt(HelperContract.KEY_LOW_VIDEO_HEIGHT, Mod69Prefs.lowVideoHeight(prefs));
@@ -75,6 +76,7 @@ public class MediaHelperService extends Service {
             Uri outUri = in.getParcelable(HelperContract.KEY_OUT);
             int type = in.getInt(HelperContract.KEY_TYPE, MediaProcessor.TYPE_IMAGE);
             String ext = in.getString(HelperContract.KEY_EXT);
+            String quality = in.getString(HelperContract.KEY_QUALITY);
             if (inUri == null || outUri == null) throw new IOException("missing file");
 
             temp = MediaProcessor.newTempFile(this, "in");
@@ -86,7 +88,7 @@ public class MediaHelperService extends Service {
             long originalSize = temp.length();
 
             SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
-            MediaProcessor.Result r = MediaProcessor.process(this, prefs, temp, type, ext);
+            MediaProcessor.Result r = MediaProcessor.process(this, prefs, temp, type, ext, quality);
             result = r.file;
             boolean changed = !result.equals(temp) || result.length() != originalSize;
 
@@ -102,10 +104,24 @@ public class MediaHelperService extends Service {
             out.putInt(HelperContract.KEY_TYPE, r.mediaType);
             out.putString(HelperContract.KEY_EXT, r.extension);
             out.putString(HelperContract.KEY_MIME, r.mimeType);
+            out.putString(HelperContract.KEY_SUFFIX, r.suffix);
+            out.putLong(HelperContract.KEY_ORIGINAL_SIZE, originalSize);
+            out.putLong(HelperContract.KEY_FINAL_SIZE, result.length());
+            int[] wh = MediaProcessor.dimensions(result, r.mediaType);
+            if (wh != null) {
+                out.putInt(HelperContract.KEY_WIDTH, wh[0]);
+                out.putInt(HelperContract.KEY_HEIGHT, wh[1]);
+            }
+            String info = String.join("\n", r.notes);
+            out.putString(HelperContract.KEY_INFO, info);
+            out.putBoolean(HelperContract.KEY_FFMPEG, FFmpeg.isAvailable());
             Stats.increment(this);
+            Stats.addJob(this, r.extension.toUpperCase() + " " + MediaProcessor.size(result.length())
+                    + (wh == null ? "" : " " + wh[0] + "x" + wh[1]) + " | " + info.replace("\n", "; "));
         } catch (Throwable t) {
             Log.w(TAG, "processing failed", t);
             out.putString(HelperContract.KEY_ERROR, String.valueOf(t.getMessage()));
+            Stats.addJob(this, "FAILED: " + t.getClass().getSimpleName() + " " + t.getMessage());
         } finally {
             if (temp != null) //noinspection ResultOfMethodCallIgnored
                 temp.delete();

@@ -44,6 +44,16 @@
             app:key="mod69_embed_video_cover"
             app:title="@string/embed_cover"
             app:summary="@string/embed_cover_summary" />
+        <SwitchPreferenceCompat
+            app:defaultValue="false"
+            app:key="mod69_image_to_webp"
+            app:title="@string/image_to_webp"
+            app:summary="@string/image_to_webp_summary" />
+        <SwitchPreferenceCompat
+            app:defaultValue="false"
+            app:key="mod69_video_to_webm"
+            app:title="@string/video_to_webm"
+            app:summary="@string/video_to_webm_summary" />
         <EditTextPreference
             app:defaultValue="320"
             app:key="mod69_cover_width"
@@ -51,10 +61,25 @@
             app:summary="@string/cover_width_summary" />
     </PreferenceCategory>
 
+    <PreferenceCategory app:title="@string/cat_backup">
+        <Preference
+            app:key="open_backup"
+            app:title="@string/backup_title"
+            app:summary="@string/backup_summary">
+            <intent
+                android:targetClass="com.gor69.mediahelper.BackupActivity"
+                android:targetPackage="com.gor69.mediahelper" />
+        </Preference>
+    </PreferenceCategory>
+
     <PreferenceCategory app:title="@string/cat_status">
         <Preference
             app:key="status_ffmpeg"
             app:selectable="false"
             app:title="@string/status_ffmpeg" />
+        <Preference
+            app:key="recent_jobs"
+            app:selectable="false"
+            app:title="@string/recent_jobs" />
     </PreferenceCategory>
 </PreferenceScreen>

@@ -7,6 +7,18 @@
         android:label="Use 69 Media Helper"
         android:protectionLevel="signature" />
 
+    <uses-permission android:name="com.gor69.mediahelper.permission.USE" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!-- to find the other 69 apps for backups -->
+    <queries>
+        <intent>
+            <action android:name="com.gor69.mod69.BACKUP" />
+        </intent>
+        <package android:name="com.deniscerri.ytdl.mod69" />
+        <package android:name="org.cygnusx1.continuum.mod69" />
+    </queries>
+
     <application
         android:allowBackup="true"
         android:icon="@drawable/ic_launcher"
@@ -26,6 +38,30 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".BackupActivity"
+            android:exported="false"
+            android:label="@string/backup_title" />
+
+        <service
+            android:name=".Mod69BackupService"
+            android:exported="true"
+            android:permission="com.gor69.mediahelper.permission.USE">
+            <intent-filter>
+                <action android:name="com.gor69.mod69.BACKUP" />
+            </intent-filter>
+        </service>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.provider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
         <service
             android:name=".MediaHelperService"
