@@ -52,6 +52,6 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'androidx.preference:preference:1.2.1'
     implementation 'com.google.android.material:material:1.12.0'
-    // FFmpeg (community build of ffmpeg-kit, includes the H.264 encoder)
-    implementation 'io.github.xch168:ffmpeg-kit-full-gpl:1.0.2'
+    // FFmpeg (maintained community build of ffmpeg-kit on Maven Central, includes the H.264 encoder)
+    implementation 'dev.ffmpegkit-maintained:ffmpeg-kit-full-gpl:6.0.3'
 }
