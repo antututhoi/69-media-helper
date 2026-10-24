@@ -1,0 +1,57 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.gor69.mediahelper'
+    compileSdk = 35
+
+    defaultConfig {
+        applicationId "com.gor69.mediahelper"
+        minSdk 24
+        targetSdk 35
+        // every GitHub build gets a higher number, so it installs over the previous one
+        versionCode 1000 + (System.getenv("GITHUB_RUN_NUMBER") ?: "0").toInteger()
+        versionName "1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+    }
+
+    // same signing key as the other 69 apps (KEYSTORE_B64 secret), so they can trust each other
+    def keystoreProps = rootProject.file("keystore.properties")
+    if (keystoreProps.exists() && keystoreProps.text.trim() != "") {
+        def kp = new Properties()
+        kp.load(new FileInputStream(keystoreProps))
+        signingConfigs {
+            mod69 {
+                storeFile file(kp["storeFile"])
+                storePassword kp["storePassword"]
+                keyAlias kp["keyAlias"]
+                keyPassword kp["keyPassword"]
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (signingConfigs.findByName("mod69") != null) {
+                signingConfig signingConfigs.mod69
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'androidx.preference:preference:1.2.1'
+    implementation 'com.google.android.material:material:1.12.0'
+    // FFmpeg (community build of ffmpeg-kit, includes the H.264 encoder)
+    implementation 'io.github.xch168:ffmpeg-kit-full-gpl:1.0.2'
+}

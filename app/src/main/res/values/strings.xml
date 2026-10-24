@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">69-Media Helper</string>
+    <string name="cat_quality">Download quality (all 69 apps)</string>
+    <string name="download_quality">Download quality</string>
+    <string name="quality_high">High (original file)</string>
+    <string name="quality_low">Low (smaller copy)</string>
+    <string name="low_image_mode">Low quality picture size by</string>
+    <string name="mode_width">Width</string>
+    <string name="mode_box">Fit inside a box</string>
+    <string name="mode_percent">Percent</string>
+    <string name="low_image_size">Low quality width / box size (px)</string>
+    <string name="low_image_size_summary">Default 1280. Pictures keep their shape.</string>
+    <string name="low_image_percent">Low quality percent</string>
+    <string name="low_image_percent_summary">Default 50 (half size). Used when "Percent" is chosen.</string>
+    <string name="low_video_height">Low quality video (p)</string>
+    <string name="low_video_height_summary">Default 480 (480p)</string>
+    <string name="cat_convert">Conversions</string>
+    <string name="gif_to_mp4">Convert GIFs to MP4</string>
+    <string name="gif_to_mp4_summary">Keeps the GIF if the video would not be smaller</string>
+    <string name="embed_cover">Add a cover picture to videos</string>
+    <string name="embed_cover_summary">So thumbnails show when browsing folders (e.g. rclone)</string>
+    <string name="cover_width">Cover picture width (px)</string>
+    <string name="cover_width_summary">Default 320, like your PC scripts</string>
+    <string name="cat_status">Status</string>
+    <string name="status_ffmpeg">FFmpeg</string>
+    <string name="status_ok">Ready</string>
+    <string name="status_missing">Not available (conversions are skipped)</string>
+    <string name="processed_count">Files processed: %1$d</string>
+    <string-array name="quality_entries">
+        <item>@string/quality_high</item>
+        <item>@string/quality_low</item>
+    </string-array>
+    <string-array name="quality_values" translatable="false">
+        <item>high</item>
+        <item>low</item>
+    </string-array>
+    <string-array name="mode_entries">
+        <item>@string/mode_width</item>
+        <item>@string/mode_box</item>
+        <item>@string/mode_percent</item>
+    </string-array>
+    <string-array name="mode_values" translatable="false">
+        <item>width</item>
+        <item>box</item>
+        <item>percent</item>
+    </string-array>
+</resources>

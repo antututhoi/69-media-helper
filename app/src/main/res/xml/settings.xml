@@ -1,0 +1,60 @@
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory app:title="@string/cat_quality">
+        <ListPreference
+            app:defaultValue="high"
+            android:entries="@array/quality_entries"
+            app:entryValues="@array/quality_values"
+            app:key="mod69_download_quality"
+            app:title="@string/download_quality"
+            app:useSimpleSummaryProvider="true" />
+        <ListPreference
+            app:defaultValue="width"
+            android:entries="@array/mode_entries"
+            app:entryValues="@array/mode_values"
+            app:key="mod69_low_image_mode"
+            app:title="@string/low_image_mode"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            app:defaultValue="1280"
+            app:key="mod69_low_image_size"
+            app:title="@string/low_image_size"
+            app:summary="@string/low_image_size_summary" />
+        <EditTextPreference
+            app:defaultValue="50"
+            app:key="mod69_low_image_percent"
+            app:title="@string/low_image_percent"
+            app:summary="@string/low_image_percent_summary" />
+        <EditTextPreference
+            app:defaultValue="480"
+            app:key="mod69_low_video_height"
+            app:title="@string/low_video_height"
+            app:summary="@string/low_video_height_summary" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="@string/cat_convert">
+        <SwitchPreferenceCompat
+            app:defaultValue="false"
+            app:key="mod69_gif_to_mp4"
+            app:title="@string/gif_to_mp4"
+            app:summary="@string/gif_to_mp4_summary" />
+        <SwitchPreferenceCompat
+            app:defaultValue="true"
+            app:key="mod69_embed_video_cover"
+            app:title="@string/embed_cover"
+            app:summary="@string/embed_cover_summary" />
+        <EditTextPreference
+            app:defaultValue="320"
+            app:key="mod69_cover_width"
+            app:title="@string/cover_width"
+            app:summary="@string/cover_width_summary" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="@string/cat_status">
+        <Preference
+            app:key="status_ffmpeg"
+            app:selectable="false"
+            app:title="@string/status_ffmpeg" />
+    </PreferenceCategory>
+</PreferenceScreen>

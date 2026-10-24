@@ -1,0 +1,5 @@
+<resources>
+    <style name="AppTheme" parent="Theme.Material3.DayNight">
+        <item name="colorPrimary">#FF6E40</item>
+    </style>
+</resources>
