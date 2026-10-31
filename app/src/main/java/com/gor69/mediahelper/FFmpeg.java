@@ -14,35 +14,63 @@ public final class FFmpeg {
     private static Boolean available;
     static String version = "";
     static String problem = "";
+    private static String base = "com.arthenica.ffmpegkit";
 
     private FFmpeg() {}
 
     public static synchronized boolean isAvailable() {
         if (available == null) {
-            try {
-                Class.forName("com.arthenica.ffmpegkit.FFmpegKit");
-                // also load the native part, so "Ready" really means it can run
-                Object v = Class.forName("com.arthenica.ffmpegkit.FFmpegKitConfig")
-                        .getMethod("getFFmpegVersion").invoke(null);
-                version = v == null ? "" : v.toString();
-                available = true;
-            } catch (Throwable t) {
-                Log.w(TAG, "FFmpeg not available", t);
-                problem = t.getClass().getSimpleName() + (t.getCause() != null ? " / " + t.getCause().getClass().getSimpleName() : "");
-                available = false;
+            available = false;
+            StringBuilder why = new StringBuilder();
+            // different FFmpegKit builds use different package names
+            for (String pkg : new String[]{"com.arthenica.ffmpegkit", "com.antonkarpenko.ffmpegkit"}) {
+                try {
+                    Class.forName(pkg + ".FFmpegKit");
+                    // also load the native part, so "Ready" really means it can run
+                    Object v = Class.forName(pkg + ".FFmpegKitConfig").getMethod("getFFmpegVersion").invoke(null);
+                    version = v == null ? "" : v.toString();
+                    base = pkg;
+                    available = true;
+                    break;
+                } catch (Throwable t) {
+                    Throwable root = t;
+                    while (root.getCause() != null) root = root.getCause();
+                    if (!(root instanceof ClassNotFoundException)) {
+                        Log.w(TAG, "FFmpeg not available in " + pkg, t);
+                        why.append(root.getClass().getSimpleName()).append(": ").append(root.getMessage()).append(' ');
+                    }
+                }
             }
+            problem = why.length() > 0 ? why.toString().trim() : "FFmpeg library not found in the app";
         }
         return available;
     }
 
     /** @return true if FFmpeg ran and exited with code 0. */
     public static boolean run(String... args) {
-        return exec("com.arthenica.ffmpegkit.FFmpegKit", args) != null;
+        return exec(base + ".FFmpegKit", args) != null;
+    }
+
+    /**
+     * Lets FFmpeg read a content:// file directly (no copy). Returns null if this FFmpegKit
+     * build cannot do it.
+     */
+    public static String safRead(android.content.Context context, android.net.Uri uri) {
+        if (!isAvailable()) return null;
+        try {
+            Class<?> cfg = Class.forName(base + ".FFmpegKitConfig");
+            Object r = cfg.getMethod("getSafParameterForRead", android.content.Context.class, android.net.Uri.class)
+                    .invoke(null, context, uri);
+            return r == null ? null : r.toString();
+        } catch (Throwable t) {
+            Log.w(TAG, "no SAF support", t);
+            return null;
+        }
     }
 
     /** Runs ffprobe and returns its printed output, or null on failure. */
     public static String probe(String... args) {
-        return exec("com.arthenica.ffmpegkit.FFprobeKit", args);
+        return exec(base + ".FFprobeKit", args);
     }
 
     private static String exec(String kitClass, String[] args) {

@@ -19,6 +19,13 @@ public final class HelperContract {
     public static final int MSG_RESULT = 2;
     public static final int MSG_PING = 3;
     public static final int MSG_PONG = 4;
+    /** Cut a part of a video, or turn it into MP3 (sent by 69-Next Player). Answer: MSG_CUT_RESULT. */
+    public static final int MSG_CUT = 5;
+    public static final int MSG_CUT_RESULT = 6;
+    public static final String KEY_START_MS = "start_ms";
+    public static final String KEY_END_MS = "end_ms";        // -1 = until the end
+    public static final String KEY_MODE = "mode";            // "copy", "exact" or "mp3"
+    public static final String KEY_OUT_EXT = "out_ext";
 
     public static final String KEY_IN = "in";
     public static final String KEY_OUT = "out";
@@ -45,7 +52,7 @@ public final class HelperContract {
     public static final String KEY_HEIGHT = "height";
     public static final String KEY_FFMPEG = "ffmpeg";      // also sent with MSG_PONG
 
-    public static final int VERSION = 2;
+    public static final int VERSION = 3;
 
     private HelperContract() {}
 }

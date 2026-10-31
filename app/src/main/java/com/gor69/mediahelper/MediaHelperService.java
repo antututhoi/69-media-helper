@@ -64,6 +64,10 @@ public class MediaHelperService extends Service {
             send(reply, pong);
             return true;
         }
+        if (msg.what == HelperContract.MSG_CUT) {
+            handleCut(msg.getData(), reply);
+            return true;
+        }
         if (msg.what != HelperContract.MSG_PROCESS) return false;
 
         Bundle in = msg.getData();
@@ -132,6 +136,91 @@ public class MediaHelperService extends Service {
         m.setData(out);
         send(reply, m);
         return true;
+    }
+
+    /** 69-Next Player: cut a part (fast copy or exact re-encode) or save the sound as MP3. */
+    private void handleCut(Bundle in, Messenger reply) {
+        Bundle out = new Bundle();
+        out.putBoolean(HelperContract.KEY_OK, false);
+        File copied = null;
+        File result = null;
+        try {
+            if (!FFmpeg.isAvailable()) throw new IOException("FFmpeg not available in the helper");
+            Uri inUri = in.getParcelable(HelperContract.KEY_IN);
+            Uri outUri = in.getParcelable(HelperContract.KEY_OUT);
+            if (inUri == null || outUri == null) throw new IOException("missing file");
+            long start = Math.max(0, in.getLong(HelperContract.KEY_START_MS, 0));
+            long end = in.getLong(HelperContract.KEY_END_MS, -1);
+            String mode = in.getString(HelperContract.KEY_MODE, "copy");
+            String ext = in.getString(HelperContract.KEY_OUT_EXT, "mp4");
+
+            String input = FFmpeg.safRead(this, inUri);
+            if (input == null) {
+                copied = MediaProcessor.newTempFile(this, "cutin");
+                try (InputStream is = getContentResolver().openInputStream(inUri);
+                     OutputStream os = new FileOutputStream(copied)) {
+                    if (is == null) throw new IOException("cannot read input");
+                    copy(is, os);
+                }
+                input = copied.getAbsolutePath();
+            }
+            result = new File(getCacheDir(), "cut_" + System.currentTimeMillis() + "." + ext);
+
+            java.util.List<String> a = new java.util.ArrayList<>();
+            a.add("-y");
+            a.add("-ss"); a.add(String.format(java.util.Locale.US, "%.3f", start / 1000.0));
+            a.add("-i"); a.add(input);
+            if (end > start) {
+                a.add("-t"); a.add(String.format(java.util.Locale.US, "%.3f", (end - start) / 1000.0));
+            }
+            switch (mode) {
+                case "mp3":
+                    a.add("-vn"); a.add("-map"); a.add("0:a:0");
+                    a.add("-c:a"); a.add("libmp3lame"); a.add("-q:a"); a.add("2");
+                    break;
+                case "exact":
+                    a.add("-map"); a.add("0:v:0?"); a.add("-map"); a.add("0:a?");
+                    a.add("-c:v"); a.add("libx264"); a.add("-preset"); a.add("veryfast"); a.add("-crf"); a.add("20");
+                    a.add("-pix_fmt"); a.add("yuv420p");
+                    a.add("-c:a"); a.add("aac"); a.add("-b:a"); a.add("192k");
+                    a.add("-movflags"); a.add("+faststart");
+                    break;
+                default:
+                    a.add("-map"); a.add("0:v?"); a.add("-map"); a.add("0:a?");
+                    if (ext.equals("mkv")) { a.add("-map"); a.add("0:s?"); }
+                    a.add("-c"); a.add("copy");
+                    a.add("-avoid_negative_ts"); a.add("make_zero");
+                    break;
+            }
+            a.add(result.getAbsolutePath());
+            boolean ok = FFmpeg.run(a.toArray(new String[0]));
+            if (!ok && mode.equals("mp3")) {
+                // some builds have no LAME: fall back to AAC in an .m4a-compatible stream
+                throw new IOException("MP3 encoder failed");
+            }
+            if (!ok || !result.exists() || result.length() == 0) throw new IOException("FFmpeg failed");
+            try (InputStream is = new FileInputStream(result);
+                 OutputStream os = getContentResolver().openOutputStream(outUri, "wt")) {
+                if (os == null) throw new IOException("cannot write output");
+                copy(is, os);
+            }
+            out.putBoolean(HelperContract.KEY_OK, true);
+            out.putLong(HelperContract.KEY_FINAL_SIZE, result.length());
+            Stats.increment(this);
+            Stats.addJob(this, "Next Player " + mode + " " + MediaProcessor.size(result.length()));
+        } catch (Throwable t) {
+            Log.w(TAG, "cut failed", t);
+            out.putString(HelperContract.KEY_ERROR, String.valueOf(t.getMessage()));
+            Stats.addJob(this, "FAILED cut: " + t.getMessage());
+        } finally {
+            if (copied != null) //noinspection ResultOfMethodCallIgnored
+                copied.delete();
+            if (result != null) //noinspection ResultOfMethodCallIgnored
+                result.delete();
+        }
+        Message m = Message.obtain(null, HelperContract.MSG_CUT_RESULT);
+        m.setData(out);
+        send(reply, m);
     }
 
     private static void send(Messenger to, Message m) {
