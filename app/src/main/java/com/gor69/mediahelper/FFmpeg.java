@@ -35,7 +35,10 @@ public final class FFmpeg {
                 } catch (Throwable t) {
                     Throwable root = t;
                     while (root.getCause() != null) root = root.getCause();
-                    if (!(root instanceof ClassNotFoundException)) {
+                    // a class missing INSIDE the library (not the library itself) is a real problem: show it
+                    boolean libraryItself = t instanceof ClassNotFoundException
+                            && String.valueOf(t.getMessage()).contains(pkg + ".FFmpegKit");
+                    if (!libraryItself) {
                         Log.w(TAG, "FFmpeg not available in " + pkg, t);
                         why.append(root.getClass().getSimpleName()).append(": ").append(root.getMessage()).append(' ');
                     }
