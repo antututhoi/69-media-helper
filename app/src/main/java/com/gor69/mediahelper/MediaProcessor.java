@@ -122,9 +122,20 @@ public final class MediaProcessor {
         return process(context, prefs, input, declaredType, declaredExt, null);
     }
 
-    /** @param qualityOverride "high" or "low" for this one file (the "other quality" download), or null for the setting. */
     public static Result process(Context context, SharedPreferences prefs, File input,
                                  int declaredType, @Nullable String declaredExt, @Nullable String qualityOverride) {
+        return process(context, prefs, input, declaredType, declaredExt, qualityOverride, null);
+    }
+
+    private static String perf = "normal";
+
+    /**
+     * @param qualityOverride "high" or "low" for this one file (the "other quality" download), or null for the setting.
+     * @param videoTarget     "h265", "webm" or "keep" for this one video, or null for the setting.
+     */
+    public static Result process(Context context, SharedPreferences prefs, File input,
+                                 int declaredType, @Nullable String declaredExt, @Nullable String qualityOverride,
+                                 @Nullable String videoTarget) {
         Result r = new Result();
         String real = sniff(input);
         if (real == null) {
@@ -141,7 +152,10 @@ public final class MediaProcessor {
         boolean low = qualityOverride != null ? "low".equals(qualityOverride) : Mod69Prefs.isLowQuality(prefs);
         boolean cover = prefs.getBoolean(Mod69Prefs.EMBED_VIDEO_COVER, true);
         boolean toWebp = prefs.getBoolean(Mod69Prefs.IMAGE_TO_WEBP, false);
-        boolean toWebm = prefs.getBoolean(Mod69Prefs.VIDEO_TO_WEBM, false);
+        boolean toWebm = videoTarget == null || videoTarget.isEmpty()
+                ? prefs.getBoolean(Mod69Prefs.VIDEO_TO_WEBM, false) : "webm".equals(videoTarget);
+        boolean toH265 = "h265".equals(videoTarget);
+        perf = prefs.getString(Mod69Prefs.VIDEO_PERFORMANCE, "normal");
         COVER_WIDTH = Mod69Prefs.coverWidth(prefs);
         boolean ffmpeg = FFmpeg.isAvailable();
         r.notes.add("Quality: " + (low ? "low" : "original"));
@@ -227,6 +241,18 @@ public final class MediaProcessor {
                             r.notes.add("Video already " + Mod69Prefs.lowVideoHeight(prefs) + "p or smaller");
                         }
                     }
+                    if (toH265) {
+                        long before = r.file.length();
+                        File hevc = toH265(context, r.file);
+                        if (hevc != null && hevc.length() < before) {
+                            r.notes.add("H.265: " + size(before) + " -> " + size(hevc.length()));
+                            replace(r, hevc, "mp4");
+                        } else {
+                            if (hevc != null) //noinspection ResultOfMethodCallIgnored
+                                hevc.delete();
+                            r.notes.add("H.265 not smaller, kept " + r.extension.toUpperCase());
+                        }
+                    }
                     if (toWebm && !r.extension.equals("webm")) {
                         long before = r.file.length();
                         File webm = toWebm(context, r.file);
@@ -300,12 +326,54 @@ public final class MediaProcessor {
     @Nullable
     private static File toWebm(Context context, File in) {
         File out = newTempFile(context, "webm");
-        boolean ok = FFmpeg.run("-y", "-i", in.getAbsolutePath(), "-map", "0:v:0", "-map", "0:a:0?",
-                "-c:v", "libvpx-vp9", "-crf", "34", "-b:v", "0", "-row-mt", "1", "-deadline", "realtime", "-cpu-used", "8",
-                "-c:a", "libopus", "-b:a", "96k", out.getAbsolutePath());
+        // Low = cool and battery friendly, High = all cores and better compression.
+        String threads = "low".equals(perf) ? "2" : "high".equals(perf) ? "0" : "4";
+        String cpuUsed = "low".equals(perf) ? "8" : "high".equals(perf) ? "4" : "6";
+        String deadline = "high".equals(perf) ? "good" : "realtime";
+        boolean ok = FFmpeg.run("-y", "-threads", threads, "-i", in.getAbsolutePath(), "-map", "0:v:0", "-map", "0:a:0?",
+                "-c:v", "libvpx-vp9", "-crf", "34", "-b:v", "0", "-row-mt", "1", "-deadline", deadline, "-cpu-used", cpuUsed,
+                "-threads", threads, "-c:a", "libopus", "-b:a", "96k", out.getAbsolutePath());
         if (ok && out.length() > 1024 && sameDuration(in, out)) return out;
         //noinspection ResultOfMethodCallIgnored
         out.delete();
+        return null;
+    }
+
+    /**
+     * H.265 MP4: first the phone's video chip (fast, cool), then the x265 software encoder.
+     * The chip gets a bitrate about 55% of the original video's.
+     */
+    @Nullable
+    private static File toH265(Context context, File in) {
+        long bitrate = 0;
+        android.media.MediaMetadataRetriever mmr = new android.media.MediaMetadataRetriever();
+        try {
+            mmr.setDataSource(in.getAbsolutePath());
+            String b = mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_BITRATE);
+            if (b != null) bitrate = Long.parseLong(b);
+        } catch (Exception ignored) {
+        } finally {
+            try { mmr.release(); } catch (Exception ignored) { }
+        }
+        long target = Math.max(300_000L, (long) ((bitrate > 0 ? bitrate - 128_000 : 2_000_000) * 0.55));
+        String threads = "low".equals(perf) ? "2" : "high".equals(perf) ? "0" : "4";
+        String preset = "low".equals(perf) ? "ultrafast" : "high".equals(perf) ? "medium" : "veryfast";
+        String[][] encoders = {
+                {"-c:v", "hevc_mediacodec", "-b:v", String.valueOf(target)},
+                {"-c:v", "libx265", "-preset", preset, "-crf", "28", "-x265-params", "pools=" + ("0".equals(threads) ? "*" : threads)},
+        };
+        for (String[] enc : encoders) {
+            File out = newTempFile(context, "mp4");
+            java.util.List<String> a = new java.util.ArrayList<>(java.util.Arrays.asList(
+                    "-y", "-threads", threads, "-i", in.getAbsolutePath(), "-map", "0:v:0", "-map", "0:a:0?"));
+            a.addAll(java.util.Arrays.asList(enc));
+            a.addAll(java.util.Arrays.asList("-tag:v", "hvc1", "-pix_fmt", "yuv420p",
+                    "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", out.getAbsolutePath()));
+            boolean ok = FFmpeg.run(a.toArray(new String[0]));
+            if (ok && out.length() > 1024 && sameDuration(in, out)) return out;
+            //noinspection ResultOfMethodCallIgnored
+            out.delete();
+        }
         return null;
     }
 

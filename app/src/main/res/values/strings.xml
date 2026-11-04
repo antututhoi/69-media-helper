@@ -24,6 +24,17 @@
     <string name="cover_width_summary">Default 320, like your PC scripts</string>
     <string name="image_to_webp">Convert pictures to WebP</string>
     <string name="image_to_webp_summary">Keeps the original if the WebP would not be smaller</string>
+    <string name="video_performance">Video conversion speed</string>
+    <string-array name="video_performance_names">
+        <item>Low – cool, battery friendly</item>
+        <item>Normal</item>
+        <item>High – fastest, uses all cores</item>
+    </string-array>
+    <string-array name="video_performance_values">
+        <item>low</item>
+        <item>normal</item>
+        <item>high</item>
+    </string-array>
     <string name="video_to_webm">Convert videos to WebM</string>
     <string name="video_to_webm_summary">Slow on a phone. Keeps the original if the WebM would not be smaller. Folder thumbnails may not show for WebM.</string>
     <string name="recent_jobs">Recent jobs</string>

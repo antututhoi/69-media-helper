@@ -54,6 +54,13 @@
             app:key="mod69_video_to_webm"
             app:title="@string/video_to_webm"
             app:summary="@string/video_to_webm_summary" />
+        <ListPreference
+            app:defaultValue="normal"
+            app:key="mod69_video_performance"
+            app:title="@string/video_performance"
+            app:entries="@array/video_performance_names"
+            app:entryValues="@array/video_performance_values"
+            app:useSimpleSummaryProvider="true" />
         <EditTextPreference
             app:defaultValue="320"
             app:key="mod69_cover_width"

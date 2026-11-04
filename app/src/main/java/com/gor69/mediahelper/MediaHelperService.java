@@ -81,6 +81,7 @@ public class MediaHelperService extends Service {
             int type = in.getInt(HelperContract.KEY_TYPE, MediaProcessor.TYPE_IMAGE);
             String ext = in.getString(HelperContract.KEY_EXT);
             String quality = in.getString(HelperContract.KEY_QUALITY);
+            String videoTarget = in.getString(HelperContract.KEY_VIDEO_TARGET);
             if (inUri == null || outUri == null) throw new IOException("missing file");
 
             temp = MediaProcessor.newTempFile(this, "in");
@@ -92,7 +93,7 @@ public class MediaHelperService extends Service {
             long originalSize = temp.length();
 
             SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
-            MediaProcessor.Result r = MediaProcessor.process(this, prefs, temp, type, ext, quality);
+            MediaProcessor.Result r = MediaProcessor.process(this, prefs, temp, type, ext, quality, videoTarget);
             result = r.file;
             boolean changed = !result.equals(temp) || result.length() != originalSize;
 

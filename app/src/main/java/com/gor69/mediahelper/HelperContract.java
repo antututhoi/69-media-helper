@@ -43,6 +43,8 @@ public final class HelperContract {
 
     /** Sent with MSG_PROCESS: "high" or "low" for this one file, overriding the setting (optional). */
     public static final String KEY_QUALITY = "quality";
+    /** Sent with MSG_PROCESS: what to make of a video: "h265" (MP4, phone video chip), "webm" (VP9) or "keep". Optional. */
+    public static final String KEY_VIDEO_TARGET = "video_target";
     /** Sent back with MSG_RESULT: */
     public static final String KEY_INFO = "info";          // what was done, one line per step
     public static final String KEY_SUFFIX = "suffix";      // "_lo", "_480p" or ""
