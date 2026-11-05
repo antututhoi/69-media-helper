@@ -45,6 +45,15 @@ public class SettingsActivity extends AppCompatActivity {
         @Override
         public void onResume() {
             super.onResume();
+            Preference picker = findPreference("mod69_file_picker");
+            if (picker != null) {
+                picker.setSummary(Mod69Picker.choiceName(requireContext()));
+                picker.setOnPreferenceClickListener(x -> {
+                    Mod69Picker.showSettingDialog(requireContext(),
+                            () -> picker.setSummary(Mod69Picker.choiceName(requireContext())));
+                    return true;
+                });
+            }
             Preference status = findPreference("status_ffmpeg");
             if (status != null) {
                 boolean ok = FFmpeg.isAvailable();

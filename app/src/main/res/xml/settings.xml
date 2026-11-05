@@ -70,6 +70,9 @@
 
     <PreferenceCategory app:title="@string/cat_backup">
         <Preference
+            app:key="mod69_file_picker"
+            app:title="Folder / file picker" />
+        <Preference
             app:key="open_backup"
             app:title="@string/backup_title"
             app:summary="@string/backup_summary">

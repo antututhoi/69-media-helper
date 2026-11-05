@@ -19,6 +19,29 @@
         <package android:name="org.cygnusx1.continuum.mod69" />
     </queries>
 
+    <!-- 69 mod: folder / file picker choice -->
+    <queries>
+        <package android:name="me.zhanghai.android.files.mod69" />
+        <package android:name="me.zhanghai.android.files" />
+        <package android:name="com.mixplorer.silver" />
+        <package android:name="com.mixplorer" />
+        <intent>
+            <action android:name="android.intent.action.OPEN_DOCUMENT_TREE" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.OPEN_DOCUMENT" />
+            <data android:mimeType="*/*" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.CREATE_DOCUMENT" />
+            <data android:mimeType="*/*" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.GET_CONTENT" />
+            <data android:mimeType="*/*" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="true"
         android:icon="@drawable/ic_launcher"
