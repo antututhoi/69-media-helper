@@ -55,6 +55,13 @@
             app:title="@string/video_to_webm"
             app:summary="@string/video_to_webm_summary" />
         <ListPreference
+            app:defaultValue="vp9"
+            app:key="mod69_small_video_codec"
+            app:title="Codec for WebM / GIF videos"
+            app:entries="@array/small_codec_names"
+            app:entryValues="@array/small_codec_values"
+            app:useSimpleSummaryProvider="true" />
+        <ListPreference
             app:defaultValue="normal"
             app:key="mod69_video_performance"
             app:title="@string/video_performance"

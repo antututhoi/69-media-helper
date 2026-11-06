@@ -77,4 +77,12 @@
         <item>box</item>
         <item>percent</item>
     </string-array>
+    <string-array name="small_codec_names">
+        <item>VP9 (fast)</item>
+        <item>AV1 (smallest, much slower)</item>
+    </string-array>
+    <string-array name="small_codec_values">
+        <item>vp9</item>
+        <item>av1</item>
+    </string-array>
 </resources>

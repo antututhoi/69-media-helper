@@ -156,6 +156,7 @@ public final class MediaProcessor {
                 ? prefs.getBoolean(Mod69Prefs.VIDEO_TO_WEBM, false) : "webm".equals(videoTarget);
         boolean toH265 = "h265".equals(videoTarget);
         perf = prefs.getString(Mod69Prefs.VIDEO_PERFORMANCE, "normal");
+        smallCodec = prefs.getString("mod69_small_video_codec", "vp9");
         COVER_WIDTH = Mod69Prefs.coverWidth(prefs);
         boolean ffmpeg = FFmpeg.isAvailable();
 
@@ -325,8 +326,41 @@ public final class MediaProcessor {
         return out.length() > 0 ? out : null;
     }
 
+    /** 69 mod: "av1" = AV1 (smallest files, slow to make), otherwise VP9. */
+    static String smallCodec = "vp9";
+
+    /** AV1 encoders this FFmpeg may have, fastest settings first. */
+    private static final String[][] AV1 = {
+            {"-c:v", "libsvtav1", "-crf", "38", "-preset", "10"},
+            {"-c:v", "libaom-av1", "-crf", "36", "-b:v", "0", "-usage", "realtime", "-cpu-used", "8", "-row-mt", "1", "-tiles", "2x2"},
+    };
+
+    @Nullable
+    private static File toAv1(Context context, File in, String ext, boolean audio) {
+        File out = newTempFile(context, ext);
+        for (String[] enc : AV1) {
+            List<String> a = new ArrayList<>(Arrays.asList("-y", "-i", in.getAbsolutePath(), "-map", "0:v:0"));
+            if (audio) a.addAll(Arrays.asList("-map", "0:a:0?"));
+            a.addAll(Arrays.asList(enc));
+            a.addAll(Arrays.asList("-pix_fmt", "yuv420p"));
+            if (audio) a.addAll(Arrays.asList("-c:a", "libopus", "-b:a", "96k", "-ar", "48000"));
+            else a.add("-an");
+            if (ext.equals("mp4")) a.addAll(Arrays.asList("-movflags", "+faststart"));
+            a.add(out.getAbsolutePath());
+            if (FFmpeg.run(a.toArray(new String[0])) && out.length() > 1024 && (sameDuration(in, out) || !audio)) return out;
+        }
+        //noinspection ResultOfMethodCallIgnored
+        out.delete();
+        return null;
+    }
+
     @Nullable
     private static File toWebm(Context context, File in) {
+        if ("av1".equals(smallCodec)) {
+            File av1 = toAv1(context, in, "webm", true);
+            if (av1 != null) return av1;
+            // no AV1 encoder in this FFmpeg: VP9 below
+        }
         File out = newTempFile(context, "webm");
         // Low = cool and battery friendly, High = all cores and better compression.
         String threads = "low".equals(perf) ? "2" : "high".equals(perf) ? "0" : "4";
@@ -484,6 +518,15 @@ public final class MediaProcessor {
             if (t != null) scale = "scale=" + even(t[0]) + ":" + even(t[1]);
         }
         File out = newTempFile(context, "mp4");
+        if ("av1".equals(smallCodec)) {
+            for (String[] enc : AV1) {
+                List<String> a = new ArrayList<>(Arrays.asList("-y", "-i", gif.getAbsolutePath(),
+                        "-movflags", "+faststart", "-pix_fmt", "yuv420p", "-vf", scale, "-an"));
+                a.addAll(Arrays.asList(enc));
+                a.add(out.getAbsolutePath());
+                if (FFmpeg.run(a.toArray(new String[0])) && out.length() > 1024) return out;
+            }
+        }
         List<String> base = new ArrayList<>(Arrays.asList("-y", "-i", gif.getAbsolutePath(),
                 "-movflags", "+faststart", "-pix_fmt", "yuv420p", "-vf", scale, "-an"));
         if (encodeVideo(base, out)) return out;
