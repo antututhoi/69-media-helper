@@ -158,7 +158,6 @@ public final class MediaProcessor {
         perf = prefs.getString(Mod69Prefs.VIDEO_PERFORMANCE, "normal");
         COVER_WIDTH = Mod69Prefs.coverWidth(prefs);
         boolean ffmpeg = FFmpeg.isAvailable();
-        r.notes.add("Quality: " + (low ? "low" : "original"));
 
         try {
             if (r.mediaType == TYPE_GIF) {
@@ -256,13 +255,16 @@ public final class MediaProcessor {
                     if (toWebm && !r.extension.equals("webm")) {
                         long before = r.file.length();
                         File webm = toWebm(context, r.file);
-                        if (webm != null && webm.length() < before) {
-                            r.notes.add("WebM: " + size(before) + " -> " + size(webm.length()));
+                        // WebM was asked for: keep it unless it came out much bigger
+                        if (webm != null && webm.length() <= before + before / 5) {
+                            r.notes.add("WebM " + size(before) + " -> " + size(webm.length()));
                             replace(r, webm, "webm");
+                        } else if (webm != null) {
+                            //noinspection ResultOfMethodCallIgnored
+                            webm.delete();
+                            r.notes.add("WebM bigger, kept " + r.extension.toUpperCase());
                         } else {
-                            if (webm != null) //noinspection ResultOfMethodCallIgnored
-                                webm.delete();
-                            r.notes.add("WebM not smaller, kept " + r.extension.toUpperCase());
+                            r.notes.add("WebM failed, kept " + r.extension.toUpperCase());
                         }
                     }
                     if (cover) {
@@ -334,6 +336,11 @@ public final class MediaProcessor {
                 "-c:v", "libvpx-vp9", "-crf", "34", "-b:v", "0", "-row-mt", "1", "-deadline", deadline, "-cpu-used", cpuUsed,
                 "-threads", threads, "-c:a", "libopus", "-b:a", "96k", out.getAbsolutePath());
         if (ok && out.length() > 1024 && sameDuration(in, out)) return out;
+        // second try with the simplest settings (some videos/phones fail with the fast options)
+        ok = FFmpeg.run("-y", "-i", in.getAbsolutePath(), "-map", "0:v:0", "-map", "0:a:0?",
+                "-c:v", "libvpx-vp9", "-crf", "36", "-b:v", "0", "-deadline", "realtime", "-cpu-used", "8",
+                "-pix_fmt", "yuv420p", "-c:a", "libopus", "-b:a", "96k", "-ar", "48000", out.getAbsolutePath());
+        if (ok && out.length() > 1024 && (sameDuration(in, out) || durationMs(out) <= 0)) return out;
         //noinspection ResultOfMethodCallIgnored
         out.delete();
         return null;
